@@ -8,11 +8,19 @@ class Tgbot:
     def apiurl(self, method):
         return 'https://api.telegram.org/bot{}/{}'.format(self.token, method)
 
-    def makerequest(self, reqname, **params):
+    def makeRequest(self, reqname, **params):
         logging.debug('>>> {}: {}'.format(reqname, params))
         json = requests.get(self.apiurl(reqname), params=params).json()
         logging.debug('<<< {}'.format(json))
-        return json
+        if not json['ok']:
+            raise RuntimeError('Bad request, response: {}'.format(json))
+        return json['result']
 
     def getMe(self):
-        return self.makerequest('getMe')
+        return self.makeRequest('getMe')
+
+    def getUpdates(self, offset=None, limit=None, timeout=None):
+        return self.makeRequest('getUpdates', offset=offset, limit=limit, timeout=timeout)
+
+    def sendMessage(self, chat_id, text):
+        return self.makeRequest('sendMessage', chat_id=chat_id, text=text)
