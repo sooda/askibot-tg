@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- encoding: utf8 -*-
 import tgbot
 import logging
 import socket
