@@ -124,6 +124,10 @@ Bottia ylläpitää sooda.
 
         self.mopoposter.stop()
 
+    def stop(self):
+        # just for the tests
+        self.running = False
+
     def sendMopoposter(self, msg):
         for chatid in self.mopoposter_broadcast.keys():
             self.conn.sendMessage(chatid, msg)
