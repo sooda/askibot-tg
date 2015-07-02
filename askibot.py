@@ -94,15 +94,28 @@ class Keulii(QuotesBase):
         except IOError:
             return []
 
-class AskibotTg(tgbot.Tgbot):
-    def __init__(self, token, keuliifilename, mopoposterport, quotesdir):
-        super().__init__(token)
+class AskibotTg:
+    def __init__(self, connection, keuliifilename, mopoposterport, quotesdir):
+        self.conn = connection
         self.update_offset = 0
         self.mopoposter_broadcast = {}
         self.mopoposter = Mopoposter(mopoposterport, self.sendMopoposter)
         self.keulii = Keulii(keuliifilename)
+        self.running = False
+
+    def helpMsg(self):
+        return '''Olen ASkiBot.
+
+/keulii TEKSTI: hae mopopostereista tekstinpätkää, teksti voi olla tyhjä.
+/mopoposter VIESTI: postaa mopoposteri tietokantaan. HUOM: älä käytä tätä turhuuksiin, vaan harvinaisiin herkkuihin joista täytyy jättää jälki jälkipolville sekä välitön viesti irkkiin ja rekisteröityneille tg-ryhmille.
+/keulii-register: rekisteröi tämä kanava reaaliaikaiseksi mopoposterikuuntelijaksi.
+/keulii-unregister: kumoa rekisteröinti, viestejä ei enää tule.
+
+Bottia ylläpitää sooda.
+'''
 
     def run(self):
+        self.running = True
         try:
             self.mopoposter.start()
             self.loopUpdates()
@@ -113,11 +126,11 @@ class AskibotTg(tgbot.Tgbot):
 
     def sendMopoposter(self, msg):
         for chatid in self.mopoposter_broadcast.keys():
-            self.sendMessage(chatid, msg)
+            self.conn.sendMessage(chatid, msg)
 
     def loopUpdates(self):
-        while True:
-            for update in self.getUpdates(offset=self.update_offset, timeout=60):
+        while self.running:
+            for update in self.conn.getUpdates(offset=self.update_offset, timeout=60):
                 self.handleUpdate(update)
 
     def handleUpdate(self, update):
@@ -143,26 +156,26 @@ class AskibotTg(tgbot.Tgbot):
                 commands[cmdname](msg)
 
     def cmdHelp(self, msg):
-        self.sendMessage(msg['chat']['id'], 'hello, world')
+        self.conn.sendMessage(msg['chat']['id'], self.helpMsg())
 
     def cmdStart(self, msg):
-        self.sendMessage(msg['chat']['id'], 'please stop')
+        self.conn.sendMessage(msg['chat']['id'], 'please stop')
 
     def cmdKeulii(self, msg):
         target, response = self.keulii.get(msg['chat']['id'], msg['from']['id'],
                 msg['text'][len('/keulii '):])
         if response is not None:
-            self.sendMessage(target, response)
+            self.conn.sendMessage(target, response)
 
     def cmdKeuliiRegister(self, msg):
         chat_id = msg['chat']['id']
         user_id = msg['from']['id']
         title = msg['chat']['title'] if 'title' in msg['chat'] else msg['chat']['username']
         if self.mopoposter_broadcast.get(chat_id, None):
-            self.sendMessage(user_id, 'Pöh, keuliiviestit jo rekisteröity (' + title + ')')
+            self.conn.sendMessage(user_id, 'Pöh, keuliiviestit jo rekisteröity (' + title + ')')
         else:
             self.mopoposter_broadcast[chat_id] = user_id
-            self.sendMessage(user_id, 'OK, keuliiviestit rekisteröity: ' + title)
+            self.conn.sendMessage(user_id, 'OK, keuliiviestit rekisteröity: ' + title)
 
     def cmdKeuliiUnRegister(self, msg):
         chat_id = msg['chat']['id']
@@ -171,11 +184,11 @@ class AskibotTg(tgbot.Tgbot):
         registrar = self.mopoposter_broadcast.get(chat_id, None)
         if registrar == user_id:
             del self.mopoposter_broadcast[chat_id]
-            self.sendMessage(user_id, 'OK, keuliiviestejä ei enää lähetetä: ' + title)
+            self.conn.sendMessage(user_id, 'OK, keuliiviestejä ei enää lähetetä: ' + title)
         elif registrar is None:
-            self.sendMessage(user_id, 'Pöh, keuliiviestejä ei rekisteröity (' + title + ')')
+            self.conn.sendMessage(user_id, 'Pöh, keuliiviestejä ei rekisteröity (' + title + ')')
         else:
-            self.sendMessage(user_id, 'Pöh, keuliiviestit on rekisteröinyt joku muu (' + title + ')')
+            self.conn.sendMessage(user_id, 'Pöh, keuliiviestit on rekisteröinyt joku muu (' + title + ')')
 
     def cmdQuote(self, msg):
         # FIXME
@@ -188,8 +201,8 @@ class AskibotTg(tgbot.Tgbot):
 def main():
     logging.basicConfig(filename='debug.log', level=logging.DEBUG, format='%(asctime)s [%(levelname)-8s] %(message)s')
     token = open(TOKEN_TXT).read().strip()
-    bot = AskibotTg(token, KEULII_TXT, MOPOPOSTERPORT, QUOTES_DIR)
-    print(bot.getMe())
+    bot = AskibotTg(tgbot.TgbotConnection(token), KEULII_TXT, MOPOPOSTERPORT, QUOTES_DIR)
+    print(bot.conn.getMe())
     bot.run()
 
 if __name__ == '__main__':
