@@ -88,7 +88,8 @@ class Quotes(QuotesBase):
 
     def listQuotes(self, chan_id):
         try:
-            return list(open(self.quotes_dir + '/' + chan_id))
+            with open(self.quotes_dir + '/' + chan_id) as fh:
+                return list(fh)
         except IOError:
             return []
 
@@ -103,7 +104,8 @@ class Keulii(QuotesBase):
 
     def listQuotes(self, chan_id):
         try:
-            return list(open(self.filename))
+            with open(self.filename) as fh:
+                return list(fh)
         except IOError:
             return []
 
