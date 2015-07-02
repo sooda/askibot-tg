@@ -16,19 +16,28 @@ class Mopoposter:
     def __init__(self, port, sendfunc):
         self.port = port
         self.sendfunc = sendfunc
+        self.serversocket = None
+        self.thread = None
 
     def start(self):
+        self.serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.serversocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.serversocket.bind((socket.gethostname(), self.port))
+        self.serversocket.listen(5)
+
         self.thread = threading.Thread(target=self.acceptLoop)
         self.thread.start()
 
     def acceptLoop(self):
-        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.serversocket = server
-        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        server.bind((socket.gethostname(), self.port))
-        server.listen(5)
         while True:
-            (clientsocket, address) = server.accept()
+            try:
+                (clientsocket, address) = self.serversocket.accept()
+            except OSError as err:
+                if err.errno == 22:
+                    # invalid argument, it closed
+                    break
+                raise
+
             self.handleConnection(clientsocket)
 
     def handleConnection(self, sock):
@@ -38,8 +47,11 @@ class Mopoposter:
         self.sendfunc(msg)
 
     def stop(self):
-        self.serversocket.shutdown(socket.SHUT_RDWR)
-        self.thread.join()
+        if self.serversocket:
+            self.serversocket.shutdown(socket.SHUT_RDWR)
+            self.serversocket.close()
+        if self.thread:
+            self.thread.join()
 
 class QuotesBase:
     TIME_LIMIT = 15*60
