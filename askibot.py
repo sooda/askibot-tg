@@ -150,17 +150,23 @@ class AskibotTg:
         self.mopoposter = Mopoposter(mopoposterport, self.sendMopoposter)
         self.keulii = Keulii(keuliifilename)
         self.running = False
+        me = self.conn.getMe()
+        self.username = me['username']
 
     def helpMsg(self):
         return '''Olen ASkiBot, killan irkistä tuttu robotti. Living tissue over metal endoskeleton.
 
-/keulii HAKUTEKSTI: Hae mopopostereista tekstinpätkää, hakutekstillä tai ilman.
-/keulii-register: Rekisteröi tämä kanava reaaliaikaiseksi mopoposterikuuntelijaksi.
-/keulii-unregister: Kumoa rekisteröinti, viestejä ei enää tule. Sallittu vain rekisteröijälle ja ylläpitäjälle.
-/mopoposter-post VIESTI: Postaa mopoposteri tietokantaan. HUOM: älä käytä tätä turhuuksiin, vaan harvinaisiin herkkuihin joista täytyy jättää jälki jälkipolville sekä välitön viesti irkkiin ja rekisteröityneille tg-ryhmille.
+/keulii HAKUTEKSTI - Hae mopopostereista tekstinpätkää, hakutekstillä tai ilman.
+/keuliiregister - Rekisteröi tämä kanava reaaliaikaiseksi mopoposterikuuntelijaksi.
+/keuliiunregister - Kumoa rekisteröinti, viestejä ei enää tule. Sallittu vain rekisteröijälle ja ylläpitäjälle.
 
 Bottia ylläpitää sooda.
 '''
+# TODO:
+#/mopoposterpost VIESTI - Lähetä mopoposteri tietokantaan. HUOM: älä käytä lähetystä turhuuksiin, vaan harvinaisiin herkkuihin joista täytyy jättää jälki jälkipolville sekä välitön viesti irkkiin ja rekisteröityneille tg-ryhmille.
+#
+#/q HAKUTEKSTI - kuin mopoposter, mutta kanavakohtaisille quoteille.
+#/addq VIESTI - lisää quote tälle kanavalle.
 
     def run(self):
         """Start the main loop that goes on until user ^C's this."""
@@ -184,6 +190,8 @@ Bottia ylläpitää sooda.
 
     def loopUpdates(self):
         while self.running:
+            # btw, looks like the server timeouts with status ok and an empty
+            # result set after just 20 seconds
             for update in self.conn.getUpdates(
                     offset=self.update_offset, timeout=60):
                 self.handleUpdate(update)
@@ -203,66 +211,85 @@ Bottia ylläpitää sooda.
                     '/help': self.cmdHelp,
                     '/start': self.cmdStart,
                     '/keulii': self.cmdKeulii,
-                    '/keulii-register': self.cmdKeuliiRegister,
-                    '/keulii-unregister': self.cmdKeuliiUnRegister,
+                    '/keuliiregister': self.cmdKeuliiRegister,
+                    '/keuliiunregister': self.cmdKeuliiUnRegister,
+                    '/mopoposterpost': self.cmdMopoposterPost,
                     '/q': self.cmdQuote,
                     '/addq': self.cmdAddQuote,
             }
-            cmdname = text.split(' ')[0].lower()
-            # just silently ignore others: they may be directed to other bots
+
+            try:
+                cmdname, args = text.split(' ', 1)
+            except ValueError:
+                # no args
+                cmdname = text
+                args = ''
+            # tg specifies that /cmd@nick should work just for us
+            if '@' in cmdname:
+                cmdname, target = cmdname.split('@', 1)
+                if target.lower() != self.username.lower():
+                    return
+            cmdname = cmdname.lower()
+            # just silently ignore other commands: they may be directed to
+            # other bots
             if cmdname in commands:
-                commands[cmdname](msg)
+                commands[cmdname](args, msg['chat'], msg['from'])
 
-    def cmdHelp(self, msg):
+    def cmdHelp(self, text, chat, user):
         """Respond in the chat with the command list."""
-        self.conn.sendMessage(msg['chat']['id'], self.helpMsg())
+        self.conn.sendMessage(chat['id'], self.helpMsg())
 
-    def cmdStart(self, msg):
+    def cmdStart(self, text, chat, user):
         """Was this suggested by the protocol or something?"""
-        self.conn.sendMessage(msg['chat']['id'], 'please stop')
+        self.conn.sendMessage(chat['id'], 'please stop')
 
-    def cmdKeulii(self, msg):
+    def cmdKeulii(self, text, chat, user):
         """Query for a keulii msg."""
-        target, response = self.keulii.get(msg['chat']['id'], msg['from']['id'],
-                msg['text'][len('/keulii '):])
+        target, response = self.keulii.get(chat['id'], user['id'], text)
         if response is not None:
             self.conn.sendMessage(target, response)
 
-    def cmdKeuliiRegister(self, msg):
+    def cmdKeuliiRegister(self, text, chat, user):
         """Register this chat to the keulii broadcast list."""
-        chat_id = msg['chat']['id']
-        user_id = msg['from']['id']
-        title = msg['chat']['title'] if 'title' in msg['chat'] else msg['chat']['username']
-        if self.mopoposter_broadcast.get(chat_id, None):
-            self.conn.sendMessage(user_id, 'Pöh, keuliiviestit jo rekisteröity (' + title + ')')
+        # public and private registrations are accepted, chat is one of them
+        title = chat.get('title', chat.get('username'))
+        if self.mopoposter_broadcast.get(chat['id'], None):
+            self.conn.sendMessage(user['id'],
+                    'Pöh, keuliiviestit jo rekisteröity (' + title + ')')
         else:
-            self.mopoposter_broadcast[chat_id] = user_id
-            self.conn.sendMessage(user_id, 'OK, keuliiviestit rekisteröity: ' + title)
+            self.mopoposter_broadcast[chat['id']] = user['id']
+            self.conn.sendMessage(user['id'],
+                    'OK, keuliiviestit rekisteröity: ' + title)
 
-    def cmdKeuliiUnRegister(self, msg):
+    def cmdKeuliiUnRegister(self, text, chat, user):
         """Unregister this chat from the keulii broadcast list.
 
         Others can re-register immediately and the ownership changes then.
         """
-        chat_id = msg['chat']['id']
-        user_id = msg['from']['id']
-        title = msg['chat']['title'] if 'title' in msg['chat'] else msg['chat']['username']
-        owner = self.mopoposter_broadcast.get(chat_id, None)
-        if owner == user_id:
-            del self.mopoposter_broadcast[chat_id]
-            self.conn.sendMessage(user_id, 'OK, keuliiviestejä ei enää lähetetä: ' + title)
+        title = chat.get('title', chat.get('username'))
+        owner = self.mopoposter_broadcast.get(chat['id'], None)
+        if owner == user['id']:
+            del self.mopoposter_broadcast[chat['id']]
+            self.conn.sendMessage(user['id'],
+                    'OK, keuliiviestejä ei enää lähetetä: ' + title)
         elif owner is None:
-            self.conn.sendMessage(user_id, 'Pöh, keuliiviestejä ei rekisteröity (' + title + ')')
+            self.conn.sendMessage(user['id'],
+                    'Pöh, keuliiviestejä ei rekisteröity (' + title + ')')
         else:
-            self.conn.sendMessage(user_id, 'Pöh, keuliiviestit on rekisteröinyt joku muu (' + title + ')')
+            self.conn.sendMessage(user['id'],
+                    'Pöh, keuliiviestit on rekisteröinyt joku muu (' + title + ')')
 
-    def cmdQuote(self, msg):
-        # FIXME
-        pass
+    def cmdMopoposterPost(self, text, chat, user):
+        self.conn.sendMessage(user['id'],
+                'Ei toimi vielä')
 
-    def cmdAddQuote(self, msg):
-        # FIXME
-        pass
+    def cmdQuote(self, text, chat, user):
+        self.conn.sendMessage(user['id'],
+                'Ei toimi vielä')
+
+    def cmdAddQuote(self, text, chat, user):
+        self.conn.sendMessage(user['id'],
+                'Ei toimi vielä')
 
 def main():
     logging.basicConfig(filename='debug.log', level=logging.DEBUG,
