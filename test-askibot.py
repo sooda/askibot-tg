@@ -59,8 +59,8 @@ class TestMopoposterOps(unittest.TestCase):
     def testSingle(self):
         """Just a single message sent and back."""
         client = self.newConn()
-        msg = b'this is a test message'
-        client.send(msg)
+        msg = 'this is a test message'
+        client.sendall(msg.encode(self.mp.ENCODING))
 
         self.waitmsgs(1)
 
@@ -72,8 +72,8 @@ class TestMopoposterOps(unittest.TestCase):
     def testSingleClosed(self):
         """Just a single message, close the socket immediately."""
         client = self.newConn()
-        msg = b'this is a test message'
-        client.send(msg)
+        msg = 'this is a test message'
+        client.sendall(msg.encode(self.mp.ENCODING))
         client.shutdown(socket.SHUT_RDWR)
         client.close()
 
@@ -85,14 +85,14 @@ class TestMopoposterOps(unittest.TestCase):
     def testMultiple(self):
         """Multiple messages work, in order."""
         msgs = [
-                b'this is a test message 1',
-                b'this is a test message 2',
-                b'this is a test message 3'
+                'this is a test message 1',
+                'this is a test message 2',
+                'this is a test message 3'
         ]
         clients = []
         for msg in msgs:
             client = self.newConn()
-            client.send(msg)
+            client.sendall(msg.encode(self.mp.ENCODING))
             clients.append(client)
 
         self.waitmsgs(3)
@@ -232,6 +232,7 @@ class TgbotConnStub:
         self.outgoing = []
         self.outmsg = threading.Event()
         self.outidx = 0
+        self.username = 'ASkiBot'
 
     def queue(self, msg):
         """To the bot."""
@@ -255,6 +256,9 @@ class TgbotConnStub:
         """To the server."""
         self.outgoing.append((chat_id, text))
         self.outmsg.set()
+
+    def getMe(self):
+        return {'username': self.username}
 
 class testAskibot(unittest.TestCase):
     def setUp(self):

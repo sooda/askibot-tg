@@ -10,7 +10,13 @@ class TgbotConnection:
 
     def makeRequest(self, reqname, **params):
         logging.debug('>>> {}: {}'.format(reqname, params))
-        json = requests.get(self.apiurl(reqname), params=params).json()
+        response = requests.get(self.apiurl(reqname), params=params)
+        response.encoding = 'utf-8'
+        # version mismatches in our installs
+        try:
+            json = response.json()
+        except TypeError:
+            json = response.json
         logging.debug('<<< {}'.format(json))
         if not json['ok']:
             raise RuntimeError('Bad request, response: {}'.format(json))

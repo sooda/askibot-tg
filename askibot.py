@@ -26,6 +26,7 @@ class Mopoposter:
     One message per connection, closed automatically.
     Messages sent to a callback.
     """
+    ENCODING = 'latin-1'
     def __init__(self, port, sendfunc):
         self.port = port
         self.sendfunc = sendfunc
@@ -35,7 +36,7 @@ class Mopoposter:
     def start(self):
         self.serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.serversocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.serversocket.bind((socket.gethostname(), self.port))
+        self.serversocket.bind(('127.0.0.1', self.port))
         self.serversocket.listen(20)
 
         self.thread = threading.Thread(target=self.acceptLoop)
@@ -57,10 +58,18 @@ class Mopoposter:
             self.handleConnection(clientsocket)
 
     def handleConnection(self, sock):
-        msg = sock.recv(1024)
-        sock.shutdown(socket.SHUT_RDWR)
-        sock.close()
-        self.sendfunc(msg)
+        sock.settimeout(5.0)
+        try:
+            msg = sock.recv(1024)
+        except socket.timeout:
+            # just clean up
+            pass
+        else:
+            if len(msg) > 0:
+                self.sendfunc(msg.decode(self.ENCODING))
+        finally:
+            sock.shutdown(socket.SHUT_RDWR)
+            sock.close()
 
     def stop(self):
         if self.serversocket:
@@ -120,7 +129,8 @@ class Keulii(QuotesBase):
 
     def _listQuotes(self, chan_id):
         try:
-            with open(self.filename) as fh:
+            # FIXME utf8
+            with open(self.filename, encoding='latin-1') as fh:
                 return list(fh)
         except IOError:
             return []
