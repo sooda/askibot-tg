@@ -196,7 +196,7 @@ Bottia ylläpitää sooda.
     def sendMopoposter(self, msg):
         """Got a message, broadcast it to the listeners."""
         for chatid in self.mopoposter_broadcast.keys():
-            self.conn.sendMessage(chatid, msg)
+            self.conn.sendMessage(chatid, 'KEULII! ' + msg)
 
     def loopUpdates(self):
         while self.running:
