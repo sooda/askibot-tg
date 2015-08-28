@@ -45,3 +45,7 @@ class TgbotConnection:
 
     def sendMessage(self, chat_id, text):
         return self.makeRequest('sendMessage', chat_id=chat_id, text=text)
+
+    def forwardMessage(self, chat_id, from_id, msg_id):
+        return self.makeRequest('forwardMessage', chat_id=chat_id,
+                from_chat_id=from_id, message_id=msg_id)

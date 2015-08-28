@@ -10,6 +10,8 @@ import threading
 import time
 import random
 import errno
+import pickle
+import collections
 
 TOKEN_TXT = 'token.txt'
 KEULII_TXT = 'keulii.txt'
@@ -108,9 +110,9 @@ class QuotesBase:
     def _search(self, chan_id, term):
         """Find that message on a chat channel."""
         term = term.lower().strip()
-        lines = [x for x in self._listQuotes(chan_id)
-                if term in x.lower().strip()]
-        return random.choice(lines).strip() if len(lines) else None
+        lines = [x.strip() for x in self._listQuotes(chan_id)
+                if term in x.lower()]
+        return random.choice(lines) if len(lines) else None
 
     def _listQuotes(self):
         """Subclasses should do this"""
@@ -143,23 +145,44 @@ class Quotes(QuotesBase):
 
     def _listQuotes(self, chan_id):
         try:
-            with open(self.quotefile_dir + '/' + chan_id) as fh:
-                return list(fh)
+            with open('%s/%s' % (self.quotefile_dir, chan_id), 'rb') as fh:
+                return pickle.load(fh)
         except IOError:
             return []
 
-    def addQuote(self, chan_id, msg):
-        with open(self.quotefile_dir + '/' + chan_id, 'a') as fh:
-            fh.write(msg + '\n')
+    def addQuote(self, chan_id, quote):
+        quotes = self._listQuotes(chan_id)
+        quotes.append(quote)
+        with open('%s/%s' % (self.quotefile_dir, chan_id), 'wb') as fh:
+            pickle.dump(quotes, fh)
+
+
+class TgQuote(collections.namedtuple('TgQuoteBase', 'origin msgid text adder')):
+    def strip(self):
+        return self
+
+    def lower(self):
+        return self
+
+    def __contains__(self, item):
+        return item in ('%s %s' % (self.origin['username'], self.text)).lower()
+
 
 class AskibotTg:
     def __init__(self, connection, keuliifilename, mopoposterport, quotesdir):
         self.conn = connection
         self.update_offset = 0
+
         self.mopoposter_broadcast = {}
         self.mopoposter = Mopoposter(mopoposterport, self.sendMopoposter)
         self.keulii = Keulii(keuliifilename)
+        self.quotes = Quotes(quotesdir)
+        # record the last /addq place to save the quote to the right place when
+        # forwarded to the bot.
+        self.last_addq_chat = {}
+
         self.running = False
+
         me = self.conn.getMe()
         self.username = me['username']
 
@@ -170,13 +193,14 @@ class AskibotTg:
 /keuliiregister - Rekisteröi tämä kanava reaaliaikaiseksi mopoposterikuuntelijaksi.
 /keuliiunregister - Kumoa rekisteröinti, viestejä ei enää tule. Sallittu vain rekisteröijälle ja ylläpitäjälle.
 
+/q HAKUTEKSTI - kuin mopoposter, mutta kanavakohtaisille quoteille.
+/addq - merkitse lisättävä quote tälle kanavalle. Lisää se sitten forwardaamalla yksityisesti botille.
+
 Bottia ylläpitää sooda.
 '''
 # TODO:
 #/mopoposterpost VIESTI - Lähetä mopoposteri tietokantaan. HUOM: älä käytä lähetystä turhuuksiin, vaan harvinaisiin herkkuihin joista täytyy jättää jälki jälkipolville sekä välitön viesti irkkiin ja rekisteröityneille tg-ryhmille.
 #
-#/q HAKUTEKSTI - kuin mopoposter, mutta kanavakohtaisille quoteille.
-#/addq VIESTI - lisää quote tälle kanavalle.
 
     def run(self):
         """Start the main loop that goes on until user ^C's this."""
@@ -227,6 +251,13 @@ Bottia ylläpitää sooda.
                     '/q': self.cmdQuote,
                     '/addq': self.cmdAddQuote,
             }
+
+            if 'forward_from' in msg:
+                # this is a private message; from and chat are the same (the
+                # bot can't see public ones). forward_from is the original
+                # user, but the original chat is lost
+                self.cmdForwardedMessage(msg, msg['from'],
+                        msg['forward_from'])
 
             try:
                 cmdname, args = text.split(' ', 1)
@@ -294,12 +325,40 @@ Bottia ylläpitää sooda.
                 'Ei toimi vielä')
 
     def cmdQuote(self, text, chat, user):
+        """Query for a quote."""
+        target, response = self.quotes.get(chat['id'], user['id'], text)
+        if isinstance(response, TgQuote):
+            # the from-id is somehow paired to the msgid, but doesn't seem to
+            # show in the chat ui (or the forward_from field). can't send the
+            # msg if from-id is wrong.
+            self.conn.forwardMessage(target, response.adder['id'], response.msgid)
+        elif response is not None:
+            # nag the user
+            self.conn.sendMessage(target, response)
+
+    def cmdForwardedMessage(self, msg, user, fwd_from):
+        """Received a private forward, interpreted as a quote to be added"""
+        chat = self.last_addq_chat.get(user['id'])
+        if chat is None:
+            self.conn.sendMessage(user['id'],
+                    'Virhe: Mistä tämä tuli? Merkitse keskustelukanava ensin komentamalla siellä /addq')
+            return
+
+        msgid = msg['message_id']
+        text = msg['text']
+
+        quote = TgQuote(fwd_from, msgid, text, user)
+        self.quotes.addQuote(chat['id'], quote)
+
+        title = chat.get('title', chat.get('username'))
         self.conn.sendMessage(user['id'],
-                'Ei toimi vielä')
+                'addq: lisätty ({}): {}'.format(title, text))
 
     def cmdAddQuote(self, text, chat, user):
+        """addq marks the chat to record the next forward on"""
+        self.last_addq_chat[user['id']] = chat
         self.conn.sendMessage(user['id'],
-                'Ei toimi vielä')
+                'addq: Forwardaa viesti niin tallennan')
 
 def main():
     logging.basicConfig(filename='debug.log', level=logging.DEBUG,
