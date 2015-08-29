@@ -350,15 +350,15 @@ Bottia ylläpitää sooda.
         quote = TgQuote(fwd_from, msgid, text, user)
         self.quotes.addQuote(chat['id'], quote)
 
-        title = chat.get('title', chat.get('username'))
-        self.conn.sendMessage(user['id'],
-                'addq: lisätty ({}): {}'.format(title, text))
+        self.conn.sendMessage(chat['id'],
+                'addq: lisätty ({}): {}'.format(user['username'], text))
 
     def cmdAddQuote(self, text, chat, user):
         """addq marks the chat to record the next forward on"""
         self.last_addq_chat[user['id']] = chat
+        title = chat.get('title', chat.get('username'))
         self.conn.sendMessage(user['id'],
-                'addq: Forwardaa viesti niin tallennan')
+                'addq: Forwardaa viesti niin tallennan (' + title + ')')
 
 def main():
     logging.basicConfig(filename='debug.log', level=logging.DEBUG,
