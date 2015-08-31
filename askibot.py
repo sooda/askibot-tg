@@ -165,7 +165,11 @@ class TgQuote(collections.namedtuple('TgQuoteBase', 'origin msgid text adder')):
         return self
 
     def __contains__(self, item):
-        return item in ('%s %s' % (self.origin['username'], self.text)).lower()
+        return item in ('%s %s %s %s' % (
+            self.origin.get('username', ''),
+            self.origin.get('first_name', ''),
+            self.origin.get('last_name', ''),
+            self.text)).lower()
 
 
 class AskibotTg:
