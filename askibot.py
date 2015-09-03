@@ -173,11 +173,16 @@ class TgQuote(collections.namedtuple('TgQuoteBase', 'origin msgid text adder')):
 
 
 class AskibotTg:
+    MOPOPOSTER_SAVE_FILENAME = 'mopoposter.pickle'
     def __init__(self, connection, keuliifilename, mopoposterport, quotesdir):
         self.conn = connection
         self.update_offset = 0
 
-        self.mopoposter_broadcast = {}
+        try:
+            with open(self.MOPOPOSTER_SAVE_FILENAME, 'rb') as fh:
+                self.mopoposter_broadcast = pickle.load(fh)
+        except IOError:
+            self.mopoposter_broadcast = {}
         self.mopoposter = Mopoposter(mopoposterport, self.sendMopoposter)
         self.keulii = Keulii(keuliifilename)
         self.quotes = Quotes(quotesdir)
@@ -189,6 +194,13 @@ class AskibotTg:
 
         me = self.conn.getMe()
         self.username = me['username']
+
+    def saveMopoposterBroadcast(self):
+        try:
+            with open(self.MOPOPOSTER_SAVE_FILENAME, 'wb') as fh:
+                pickle.dump(self.mopoposter_broadcast, fh)
+        except IOError:
+            logging.error('Cannot open mopoposter save %s' % self.MOPOPOSTER_SAVE_FILENAME)
 
     def helpMsg(self):
         return '''Olen ASkiBot, killan irkistä tuttu robotti. Living tissue over metal endoskeleton.
@@ -303,6 +315,7 @@ Bottia ylläpitää sooda.
                     'Pöh, keuliiviestit jo rekisteröity (' + title + ')')
         else:
             self.mopoposter_broadcast[chat['id']] = user['id']
+            self.saveMopoposterBroadcast()
             self.conn.sendMessage(user['id'],
                     'OK, keuliiviestit rekisteröity: ' + title)
 
@@ -315,6 +328,7 @@ Bottia ylläpitää sooda.
         owner = self.mopoposter_broadcast.get(chat['id'], None)
         if owner == user['id']:
             del self.mopoposter_broadcast[chat['id']]
+            self.saveMopoposterBroadcast()
             self.conn.sendMessage(user['id'],
                     'OK, keuliiviestejä ei enää lähetetä: ' + title)
         elif owner is None:
