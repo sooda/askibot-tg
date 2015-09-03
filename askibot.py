@@ -165,11 +165,28 @@ class TgQuote(collections.namedtuple('TgQuoteBase', 'origin msgid text adder')):
         return self
 
     def __contains__(self, item):
+        # origin is always a user; try all of those three for easier searching
         return item in ('%s %s %s %s' % (
             self.origin.get('username', ''),
             self.origin.get('first_name', ''),
             self.origin.get('last_name', ''),
             self.text)).lower()
+
+
+def getUserDesc(user):
+    """Either "username" or "first last" (one of those should exist)
+
+    Use only for human interaction, not for detecting stuff like with IDs"""
+    return user.get('username',
+            '%s %s' % (
+                user.get('first_name', ''),
+                user.get('last_name', '')))
+
+def getChatDesc(chat):
+    """Either chat title or the user if it's a personal 1-on-1 chat
+
+    Use only for human interaction, not for detecting stuff like with IDs"""
+    return chat.get('title', getUserDesc(chat))
 
 
 class AskibotTg:
@@ -309,7 +326,7 @@ Bottia ylläpitää sooda.
     def cmdKeuliiRegister(self, text, chat, user):
         """Register this chat to the keulii broadcast list."""
         # public and private registrations are accepted, chat is one of them
-        title = chat.get('title', chat.get('username'))
+        title = getChatDesc(chat)
         if self.mopoposter_broadcast.get(chat['id'], None):
             self.conn.sendMessage(user['id'],
                     'Pöh, keuliiviestit jo rekisteröity (' + title + ')')
@@ -324,7 +341,7 @@ Bottia ylläpitää sooda.
 
         Others can re-register immediately and the ownership changes then.
         """
-        title = chat.get('title', chat.get('username'))
+        title = getChatDesc(chat)
         owner = self.mopoposter_broadcast.get(chat['id'], None)
         if owner == user['id']:
             del self.mopoposter_broadcast[chat['id']]
@@ -369,12 +386,12 @@ Bottia ylläpitää sooda.
         self.quotes.addQuote(chat['id'], quote)
 
         self.conn.sendMessage(chat['id'],
-                'addq: lisätty ({}): {}'.format(user['username'], text))
+                'addq: lisätty ({}): {}'.format(getUserDesc(user), text))
 
     def cmdAddQuote(self, text, chat, user):
         """addq marks the chat to record the next forward on"""
         self.last_addq_chat[user['id']] = chat
-        title = chat.get('title', chat.get('username'))
+        title = getChatDesc(chat)
         self.conn.sendMessage(user['id'],
                 'addq: Forwardaa viesti niin tallennan (' + title + ')')
 
