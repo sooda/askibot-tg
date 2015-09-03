@@ -231,9 +231,6 @@ class AskibotTg:
 
 Bottia ylläpitää sooda.
 '''
-# TODO:
-#/mopoposterpost VIESTI - Lähetä mopoposteri tietokantaan. HUOM: älä käytä lähetystä turhuuksiin, vaan harvinaisiin herkkuihin joista täytyy jättää jälki jälkipolville sekä välitön viesti irkkiin ja rekisteröityneille tg-ryhmille.
-#
 
     def run(self):
         """Start the main loop that goes on until user ^C's this."""
