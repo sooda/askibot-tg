@@ -386,7 +386,7 @@ Bottia ylläpitää sooda.
         self.quotes.addQuote(chat['id'], quote)
 
         self.conn.sendMessage(chat['id'],
-                'addq: lisätty ({}): {}'.format(getUserDesc(user), text))
+                'addq ({} lisäsi) {}: {}'.format(getUserDesc(user), getUserDesc(fwd_from), text))
 
     def cmdAddQuote(self, text, chat, user):
         """addq marks the chat to record the next forward on"""
