@@ -229,7 +229,7 @@ class AskibotTg:
 /q HAKUTEKSTI - kuin mopoposter, mutta kanavakohtaisille quoteille.
 /addq - merkitse lisättävä quote tälle kanavalle. Lisää se sitten forwardaamalla yksityisesti botille.
 
-Bottia ylläpitää sooda.
+Bottia ylläpitää sooda. https://github.com/sooda/askibot-tg
 '''
 
     def run(self):
