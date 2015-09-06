@@ -4,3 +4,4 @@ debug.log
 token.txt
 keulii.txt
 quotes/*
+*.pickle
