@@ -2,6 +2,7 @@ import requests
 import logging
 
 class TgbotConnection:
+    REQUEST_TIMEOUT = 30
     def __init__(self, token):
         self.token = token
 
@@ -9,9 +10,17 @@ class TgbotConnection:
         return 'https://api.telegram.org/bot{}/{}'.format(self.token, method)
 
     def makeRequest(self, reqname, **params):
+        retries = 0
         while True:
+            retries += 1
             logging.debug('>>> {}: {}'.format(reqname, params))
-            response = requests.get(self.apiurl(reqname), params=params)
+            try:
+                response = requests.get(self.apiurl(reqname),
+                        params=params, timeout=self.REQUEST_TIMEOUT)
+            except requests.exceptions.ConnectTimeout:
+                logging.warning('Timed out {} (try #{}), params: {}'.format(
+                    reqname, retries, params))
+                continue
 
             response.encoding = 'utf-8'
             # version mismatches in our installs
@@ -23,6 +32,8 @@ class TgbotConnection:
 
             # error 502 happens sometimes
             if json is None:
+                logging.warning('none json response for {} (try #{})'.format(
+                    reqname, retries))
                 continue
 
             if not json['ok']:
