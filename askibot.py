@@ -385,6 +385,8 @@ Bottia ylläpitää sooda. https://github.com/sooda/askibot-tg
         self.conn.sendMessage(chat['id'],
                 'addq ({} lisäsi) {}: {}'.format(getUserDesc(user), getUserDesc(fwd_from), text))
 
+        del self.last_addq_chat[user['id']]
+
     def cmdAddQuote(self, text, chat, user):
         """addq marks the chat to record the next forward on"""
         self.last_addq_chat[user['id']] = chat
