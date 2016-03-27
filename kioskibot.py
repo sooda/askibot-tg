@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- encoding: utf8 -*-
 
-"""ASkiBot, cloned from IRC to TG because newfags can't even."""
+"""kioskibot"""
 
 import tgbot
 import logging
@@ -122,12 +122,12 @@ class AskibotTg:
         self.username = me['username']
 
     def helpMsg(self):
-        return '''Olen ASkiBot, killan irkistä tuttu robotti. Living tissue over metal endoskeleton.
+        return '''Näe maailma eri tavalla kuin muut
 
-/q HAKUTEKSTI - kuin mopoposter, mutta kanavakohtaisille quoteille.
-/addq - merkitse lisättävä quote tälle kanavalle. Lisää se sitten forwardaamalla yksityisesti botille.
+/kioski HAKUTEKSTI - hae satunnainen kioskiläppä tältä kanavalta
+/vink - merkitse lisättävä kioskiläppä tälle kanavalle. Lisää se sitten forwardaamalla yksityisesti botille.
 
-Bottia ylläpitää sooda. https://github.com/sooda/askibot-tg
+Botti on huono vitsi eikä liity mihinkään yleisradioon mitenkään.
 '''
 
     def run(self):
@@ -164,8 +164,8 @@ Bottia ylläpitää sooda. https://github.com/sooda/askibot-tg
             commands = {
                     '/help': self.cmdHelp,
                     '/start': self.cmdStart,
-                    '/q': self.cmdQuote,
-                    '/addq': self.cmdAddQuote,
+                    '/kioski': self.cmdQuote,
+                    '/vink': self.cmdAddQuote,
             }
 
             if 'forward_from' in msg:
@@ -217,7 +217,7 @@ Bottia ylläpitää sooda. https://github.com/sooda/askibot-tg
         chat = self.last_addq_chat.get(user['id'])
         if chat is None:
             self.conn.sendMessage(user['id'],
-                    'Virhe: Mistä tämä tuli? Merkitse keskustelukanava ensin komentamalla siellä /addq')
+                    'Virhe: Mistä tämä tuli? Merkitse keskustelukanava ensin komentamalla siellä /vink')
             return
 
         msgid = msg['message_id']
@@ -236,7 +236,7 @@ Bottia ylläpitää sooda. https://github.com/sooda/askibot-tg
         self.last_addq_chat[user['id']] = chat
         title = getChatDesc(chat)
         self.conn.sendMessage(user['id'],
-                'addq: Forwardaa viesti niin tallennan (' + title + ')')
+                'vink: Forwardaa viesti niin tallennan (' + title + ')')
 
 def main():
     logging.basicConfig(filename='debug.log', level=logging.DEBUG,
