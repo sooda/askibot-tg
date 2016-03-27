@@ -17,7 +17,15 @@ class TgbotConnection:
             try:
                 response = requests.get(self.apiurl(reqname),
                         params=params, timeout=self.REQUEST_TIMEOUT)
-            except requests.exceptions.ConnectTimeout:
+            except requests.exceptions.ConnectionError as ex:
+                logging.warning('Connection error ({}) for  {} (try #{}), params: {}'.format(
+                    ex, reqname, retries, params))
+                continue
+            except requests.exceptions.Timeout: # XXX install newer version
+                logging.warning('Timed out {} (try #{}), params: {}'.format(
+                    reqname, retries, params))
+                continue
+            except requests.exceptions.ConnectTimeout: # XXX install newer version
                 logging.warning('Timed out {} (try #{}), params: {}'.format(
                     reqname, retries, params))
                 continue
@@ -37,8 +45,18 @@ class TgbotConnection:
                 continue
 
             if not json['ok']:
-                if json.get('description') == 'Error: PEER_ID_INVALID':
+                if json.get('description') == 'Error: PEER_ID_INVALID': # (FIXME: is this old format? the next one seems o be used, hmm?)
                     # happens for sendMessage sometimes. FIXME: what makes the peer invalid?
+                    # return value can be ignored here for now
+                    logging.error('FIXME: what is this?')
+                    return
+                if json.get('description') == '[Error]: PEER_ID_INVALID':
+                    # happens for sendMessage sometimes. FIXME: what makes the peer invalid?
+                    # return value can be ignored here for now
+                    logging.error('FIXME: what is this?')
+                    return
+                if json.get('description') == '[Error]: Bad Request: message not found':
+                    # got this for cmdQuote self.conn.forwardMessage(target, response.adder['id'], response.msgid)
                     # return value can be ignored here for now
                     logging.error('FIXME: what is this?')
                     return
