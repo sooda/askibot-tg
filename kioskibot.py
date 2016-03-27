@@ -14,71 +14,7 @@ import pickle
 import collections
 
 TOKEN_TXT = 'token.txt'
-KEULII_TXT = 'keulii.txt'
 QUOTES_DIR = 'quotes'
-MOPOPOSTERPORT = 6688
-
-class Mopoposter:
-    """Simple message receiver on a tcp socket.
-
-    Keulii messages go here too in realtime.
-    They get logged to a file elsewhere.
-
-    Listen for messages on new connections.
-    One message per connection, closed automatically.
-    Messages sent to a callback.
-    """
-    ENCODING = 'latin-1'
-    def __init__(self, port, sendfunc):
-        self.port = port
-        self.sendfunc = sendfunc
-        self.serversocket = None
-        self.thread = None
-
-    def start(self):
-        self.serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.serversocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.serversocket.bind(('127.0.0.1', self.port))
-        self.serversocket.listen(20)
-
-        self.thread = threading.Thread(target=self.acceptLoop)
-        self.thread.start()
-
-    def acceptLoop(self):
-        while True:
-            try:
-                (clientsocket, address) = self.serversocket.accept()
-            except OSError as err:
-                if err.errno == errno.EINVAL:
-                    # invalid argument, servsocket closed
-                    break
-                if err.errno == errno.EBADF:
-                    # bad file descriptor also equals to closing
-                    break
-                raise
-
-            self.handleConnection(clientsocket)
-
-    def handleConnection(self, sock):
-        sock.settimeout(5.0)
-        try:
-            msg = sock.recv(1024)
-        except socket.timeout:
-            # just clean up
-            pass
-        else:
-            if len(msg) > 0:
-                self.sendfunc(msg.decode(self.ENCODING))
-        finally:
-            sock.shutdown(socket.SHUT_RDWR)
-            sock.close()
-
-    def stop(self):
-        if self.serversocket:
-            self.serversocket.shutdown(socket.SHUT_RDWR)
-            self.serversocket.close()
-        if self.thread:
-            self.thread.join()
 
 class QuotesBase:
     """Get a random quote for a chat channel."""
@@ -117,25 +53,6 @@ class QuotesBase:
     def _listQuotes(self):
         """Subclasses should do this"""
         raise NotImplementedError
-
-class Keulii(QuotesBase):
-    """One global quotefile for all chats.
-
-    Time limit is still per chat.
-    Adding not supported, since it's done elsewhere.
-    They're just read in here.
-    """
-    def __init__(self, filename):
-        super().__init__()
-        self.filename = filename
-
-    def _listQuotes(self, chan_id):
-        try:
-            # FIXME utf8
-            with open(self.filename, encoding='latin-1') as fh:
-                return list(fh)
-        except IOError:
-            return []
 
 class Quotes(QuotesBase):
     """Unique quote file for each chat."""
@@ -190,18 +107,10 @@ def getChatDesc(chat):
 
 
 class AskibotTg:
-    MOPOPOSTER_SAVE_FILENAME = 'mopoposter.pickle'
-    def __init__(self, connection, keuliifilename, mopoposterport, quotesdir):
+    def __init__(self, connection, quotesdir):
         self.conn = connection
         self.update_offset = 0
 
-        try:
-            with open(self.MOPOPOSTER_SAVE_FILENAME, 'rb') as fh:
-                self.mopoposter_broadcast = pickle.load(fh)
-        except IOError:
-            self.mopoposter_broadcast = {}
-        self.mopoposter = Mopoposter(mopoposterport, self.sendMopoposter)
-        self.keulii = Keulii(keuliifilename)
         self.quotes = Quotes(quotesdir)
         # record the last /addq place to save the quote to the right place when
         # forwarded to the bot.
@@ -212,19 +121,8 @@ class AskibotTg:
         me = self.conn.getMe()
         self.username = me['username']
 
-    def saveMopoposterBroadcast(self):
-        try:
-            with open(self.MOPOPOSTER_SAVE_FILENAME, 'wb') as fh:
-                pickle.dump(self.mopoposter_broadcast, fh)
-        except IOError:
-            logging.error('Cannot open mopoposter save %s' % self.MOPOPOSTER_SAVE_FILENAME)
-
     def helpMsg(self):
         return '''Olen ASkiBot, killan irkistä tuttu robotti. Living tissue over metal endoskeleton.
-
-/keulii HAKUTEKSTI - Hae mopopostereista tekstinpätkää, hakutekstillä tai ilman.
-/keuliiregister - Rekisteröi tämä kanava reaaliaikaiseksi mopoposterikuuntelijaksi.
-/keuliiunregister - Kumoa rekisteröinti, viestejä ei enää tule. Sallittu vain rekisteröijälle ja ylläpitäjälle.
 
 /q HAKUTEKSTI - kuin mopoposter, mutta kanavakohtaisille quoteille.
 /addq - merkitse lisättävä quote tälle kanavalle. Lisää se sitten forwardaamalla yksityisesti botille.
@@ -236,21 +134,13 @@ Bottia ylläpitää sooda. https://github.com/sooda/askibot-tg
         """Start the main loop that goes on until user ^C's this."""
         self.running = True
         try:
-            self.mopoposter.start()
             self.loopUpdates()
         except KeyboardInterrupt:
             pass
 
-        self.mopoposter.stop()
-
     def stop(self):
         # just for the tests
         self.running = False
-
-    def sendMopoposter(self, msg):
-        """Got a message, broadcast it to the listeners."""
-        for chatid in self.mopoposter_broadcast.keys():
-            self.conn.sendMessage(chatid, 'KEULII! ' + msg)
 
     def loopUpdates(self):
         while self.running:
@@ -274,10 +164,6 @@ Bottia ylläpitää sooda. https://github.com/sooda/askibot-tg
             commands = {
                     '/help': self.cmdHelp,
                     '/start': self.cmdStart,
-                    '/keulii': self.cmdKeulii,
-                    '/keuliiregister': self.cmdKeuliiRegister,
-                    '/keuliiunregister': self.cmdKeuliiUnRegister,
-                    '/mopoposterpost': self.cmdMopoposterPost,
                     '/q': self.cmdQuote,
                     '/addq': self.cmdAddQuote,
             }
@@ -313,48 +199,6 @@ Bottia ylläpitää sooda. https://github.com/sooda/askibot-tg
     def cmdStart(self, text, chat, user):
         """Was this suggested by the protocol or something?"""
         self.conn.sendMessage(chat['id'], 'please stop')
-
-    def cmdKeulii(self, text, chat, user):
-        """Query for a keulii msg."""
-        target, response = self.keulii.get(chat['id'], user['id'], text)
-        if response is not None:
-            self.conn.sendMessage(target, response)
-
-    def cmdKeuliiRegister(self, text, chat, user):
-        """Register this chat to the keulii broadcast list."""
-        # public and private registrations are accepted, chat is one of them
-        title = getChatDesc(chat)
-        if self.mopoposter_broadcast.get(chat['id'], None):
-            self.conn.sendMessage(user['id'],
-                    'Pöh, keuliiviestit jo rekisteröity (' + title + ')')
-        else:
-            self.mopoposter_broadcast[chat['id']] = user['id']
-            self.saveMopoposterBroadcast()
-            self.conn.sendMessage(user['id'],
-                    'OK, keuliiviestit rekisteröity: ' + title)
-
-    def cmdKeuliiUnRegister(self, text, chat, user):
-        """Unregister this chat from the keulii broadcast list.
-
-        Others can re-register immediately and the ownership changes then.
-        """
-        title = getChatDesc(chat)
-        owner = self.mopoposter_broadcast.get(chat['id'], None)
-        if owner == user['id']:
-            del self.mopoposter_broadcast[chat['id']]
-            self.saveMopoposterBroadcast()
-            self.conn.sendMessage(user['id'],
-                    'OK, keuliiviestejä ei enää lähetetä: ' + title)
-        elif owner is None:
-            self.conn.sendMessage(user['id'],
-                    'Pöh, keuliiviestejä ei rekisteröity (' + title + ')')
-        else:
-            self.conn.sendMessage(user['id'],
-                    'Pöh, keuliiviestit on rekisteröinyt joku muu (' + title + ')')
-
-    def cmdMopoposterPost(self, text, chat, user):
-        self.conn.sendMessage(user['id'],
-                'Ei toimi vielä')
 
     def cmdQuote(self, text, chat, user):
         """Query for a quote."""
@@ -398,8 +242,8 @@ def main():
     logging.basicConfig(filename='debug.log', level=logging.DEBUG,
             format='%(asctime)s [%(levelname)-8s] %(message)s')
     token = open(TOKEN_TXT).read().strip()
-    bot = AskibotTg(tgbot.TgbotConnection(token), KEULII_TXT,
-            MOPOPOSTERPORT, QUOTES_DIR)
+    bot = AskibotTg(tgbot.TgbotConnection(token),
+            QUOTES_DIR)
     print(bot.conn.getMe())
     bot.run()
 
