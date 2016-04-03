@@ -227,7 +227,7 @@ Botti on huono vitsi eikä liity mihinkään yleisradioon mitenkään.
         self.quotes.addQuote(chat['id'], quote)
 
         self.conn.sendMessage(chat['id'],
-                'addq ({} lisäsi) {}: {}'.format(getUserDesc(user), getUserDesc(fwd_from), text))
+                'vink ({} kioskivinkkasi) {}: {}'.format(getUserDesc(user), getUserDesc(fwd_from), text))
 
         del self.last_addq_chat[user['id']]
 
