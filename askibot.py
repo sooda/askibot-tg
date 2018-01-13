@@ -263,8 +263,12 @@ Bottia ylläpitää sooda. https://github.com/sooda/askibot-tg
     def handleUpdate(self, update):
         """Got one line from the server."""
         upid = update['update_id']
-        msg = update['message']
-        self.handleMessage(msg)
+        try:
+            msg = update['message']
+        except KeyError:
+            logging.warning("what?? no message in update: <%s>" % update)
+        else:
+            self.handleMessage(msg)
         self.update_offset = upid + 1
 
     def handleMessage(self, msg):
