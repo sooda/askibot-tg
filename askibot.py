@@ -172,6 +172,10 @@ class TgQuote(collections.namedtuple('TgQuoteBase', 'origin msgid text adder')):
             self.origin.get('last_name', ''),
             self.text)).lower()
 
+def quotemerge(a, b, result):
+    a = pickle.load(open(a, 'rb'))
+    b = pickle.load(open(b, 'rb'))
+    pickle.dump(a + b, open(result, 'wb'))
 
 def getUserDesc(user):
     """Either "username" or "first last" (one of those should exist)
