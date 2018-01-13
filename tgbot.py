@@ -45,9 +45,13 @@ class TgbotConnection:
                 continue
 
             if not json['ok']:
+                return # tg changes these all the time. i don't even care anymore
                 if json.get('description') == 'Error: PEER_ID_INVALID': # (FIXME: is this old format? the next one seems o be used, hmm?)
                     # happens for sendMessage sometimes. FIXME: what makes the peer invalid?
                     # return value can be ignored here for now
+                    logging.error('FIXME: what is this?')
+                    return
+                if json.get('description') == '[Error : 400 : PEER_ID_INVALID]':
                     logging.error('FIXME: what is this?')
                     return
                 if json.get('description') == '[Error]: PEER_ID_INVALID':
@@ -63,6 +67,9 @@ class TgbotConnection:
                 if json.get('description') == 'Error: Bot was kicked from a chat':
                     logging.warning('FIXME: handle this somehow?')
                     return
+                if json.get('description') == '[Error]: Bot was blocked by the user':
+                    logging.warning('FIXME: handle this somehow?')
+                    return
                 raise RuntimeError('Bad request, response: {}'.format(json))
             return json['result']
 
@@ -70,7 +77,12 @@ class TgbotConnection:
         return self.makeRequest('getMe')
 
     def getUpdates(self, offset=None, limit=None, timeout=None):
-        return self.makeRequest('getUpdates', offset=offset, limit=limit, timeout=timeout)
+        # FIXME handle this stupid stuff like:
+        # {'error_code': 500, 'ok': False, 'description': 'Internal server error: restart'}
+        updates = self.makeRequest('getUpdates', offset=offset, limit=limit, timeout=timeout)
+        if updates is None:
+            return [] # ON ERROR RESUME NEXT :-D
+        return updates
 
     def sendMessage(self, chat_id, text):
         return self.makeRequest('sendMessage', chat_id=chat_id, text=text)
